@@ -10,6 +10,8 @@ pub enum Expression {
     Infix(Box<Expression>, Operator, Box<Expression>),
     Boolean(bool),
     If(Box<Expression>, BlockStatement, Option<BlockStatement>),
+    Function(Vec<Identifier>, BlockStatement),
+    Call(Box<Expression>, Vec<Box<Expression>>),
 }
 
 impl Display for Expression {
@@ -31,19 +33,37 @@ impl Display for Expression {
                 )
             }
             Expression::If(expression, consequence, alternative) => {
-                let mut s = format!("if {}", expression);
+                let mut s = format!("if {} {{ ", expression);
                 for stmt in consequence {
                     s.push_str(&stmt.to_string())
                 }
+                s.push_str(" }");
 
                 if let Some(alternative) = alternative {
-                    s.push_str("else ");
+                    s.push_str(" else { ");
                     for stmt in alternative {
                         s.push_str(&stmt.to_string())
                     }
+                    s.push_str(" }");
                 }
 
                 write!(f, "{}", s)
+            }
+            Expression::Function(parameters, body) => {
+                let mut s = String::new();
+                for stmt in body {
+                    s.push_str(&stmt.to_string());
+                }
+
+                write!(f, "fn({}) {{ {} }}", parameters.join(", "), s)
+            }
+            Expression::Call(function, arguments) => {
+                let mut s = vec![];
+                for arg in arguments {
+                    s.push(arg.to_string());
+                }
+
+                write!(f, "{}({})", function.to_string(), s.join(", "))
             }
         }
     }

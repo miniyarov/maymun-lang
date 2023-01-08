@@ -1,4 +1,4 @@
-use crate::ast::{BlockStatement, Expression, Program, Statement};
+use crate::ast::{BlockStatement, Expression, Identifier, Program, Statement};
 use crate::lexer::Lexer;
 use crate::token::Token;
 
@@ -65,35 +65,40 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_let_statement(&mut self) -> Option<Statement> {
-        if let Token::Ident(ident) = self.peek_token.clone() {
-            self.next_token();
-
-            if !self.expect_peek(Token::Assign) {
-                return None;
-            }
-
-            self.next_token();
-            let expr = self.parse_expression(Precedence::Lowest).unwrap();
-
-            while self.cur_token != Token::Semicolon {
+        match self.peek_token.clone() {
+            Token::Ident(ident) => {
                 self.next_token();
+
+                if !self.expect_peek(Token::Assign) {
+                    return None;
+                }
+
+                self.next_token();
+                let expr = self.parse_expression(Precedence::Lowest).unwrap();
+
+                while self.cur_token != Token::Semicolon {
+                    self.next_token();
+                }
+
+                Some(Statement::Let(ident, expr))
             }
-
-            return Some(Statement::Let(ident, expr));
+            _ => {
+                self.peek_error(Token::Ident("".to_string()));
+                None
+            }
         }
-
-        self.peek_error(Token::Ident("".to_string()));
-        None
     }
 
     fn parse_return_statement(&mut self) -> Option<Statement> {
         self.next_token();
 
-        while self.cur_token != Token::Semicolon {
+        let expr = self.parse_expression(Precedence::Lowest).unwrap();
+
+        if self.peek_token == Token::Semicolon {
             self.next_token();
         }
 
-        return Some(Statement::Return(Expression::Literal("".to_string())));
+        return Some(Statement::Return(expr));
     }
 
     fn parse_expression_statement(&mut self) -> Option<Statement> {
@@ -161,6 +166,19 @@ impl<'a> Parser<'a> {
                     Expression::If(Box::new(cond), conseq, None)
                 }
             }
+            Token::Function => {
+                if !self.expect_peek(Token::Lparen) {
+                    return None;
+                }
+
+                let parameters = self.parse_function_parameters();
+
+                if !self.expect_peek(Token::Lbrace) {
+                    return None;
+                }
+
+                Expression::Function(parameters, self.parse_block_statement())
+            }
             _ => {
                 self.errors.push(format!(
                     "undefined expression for {} found",
@@ -189,11 +207,70 @@ impl<'a> Parser<'a> {
                     let expr = self.parse_expression(cur_pre).unwrap();
                     Expression::Infix(Box::new(left_expr), op, Box::new(expr))
                 }
+                Token::Lparen => {
+                    self.next_token();
+
+                    Expression::Call(Box::new(left_expr), self.parse_call_arguments())
+                }
                 _ => return Some(left_expr),
             }
         }
 
-        return Some(left_expr);
+        Some(left_expr)
+    }
+
+    fn parse_function_parameters(&mut self) -> Vec<Identifier> {
+        let mut identifiers: Vec<Identifier> = vec![];
+        if self.peek_token == Token::Rparen {
+            self.next_token();
+
+            return identifiers;
+        }
+
+        self.next_token();
+
+        match &self.cur_token {
+            Token::Ident(ident) => identifiers.push(ident.to_owned()),
+            _ => {}
+        }
+
+        while self.peek_token == Token::Comma {
+            self.next_token();
+            self.next_token();
+
+            match &self.cur_token {
+                Token::Ident(ident) => identifiers.push(ident.to_owned()),
+                _ => {}
+            }
+        }
+
+        if !self.expect_peek(Token::Rparen) {
+            return vec![];
+        }
+
+        identifiers
+    }
+
+    fn parse_call_arguments(&mut self) -> Vec<Box<Expression>> {
+        let mut args = vec![];
+        self.next_token();
+        if self.cur_token == Token::Rparen {
+            return args;
+        }
+
+        args.push(Box::new(self.parse_expression(Precedence::Lowest).unwrap()));
+        while self.peek_token == Token::Comma {
+            self.next_token();
+            self.next_token();
+
+            args.push(Box::new(self.parse_expression(Precedence::Lowest).unwrap()));
+        }
+
+        if !self.expect_peek(Token::Rparen) {
+            return vec![];
+        }
+
+        args
     }
 
     fn parse_block_statement(&mut self) -> BlockStatement {
@@ -222,6 +299,7 @@ impl<'a> Parser<'a> {
 
     fn precedence_for(&self, token: &Token) -> Precedence {
         match token {
+            Token::Lparen => Precedence::Call,
             Token::Eq | Token::NotEq => Precedence::Equals,
             Token::Lt | Token::Gt => Precedence::LessGreater,
             Token::Plus | Token::Minus => Precedence::Sum,
@@ -244,26 +322,32 @@ mod tests {
 
     #[test]
     fn test_let_statements() {
-        let input = "
-let x = 5;
-let y = 10;
-let foobar = 934343;
-";
+        let tests = vec![
+            ("let x = 5;", "x", 5),
+            ("let y = 10;", "y", 10),
+            ("let foobar = 123;", "foobar", 123),
+        ];
 
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
+        for (input, expected_identifier, expected_value) in tests {
+            let lexer = Lexer::new(input);
+            let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
+            let program = parser.parse_program();
 
-        check_parser_errors(&parser);
-        assert_eq!(3, program.len());
-
-        let tests = vec!["x", "y", "foobar"];
-
-        for (i, expected_ident) in tests.iter().enumerate() {
-            assert!(
-                matches!(&program.get(i), Statement::Let(ident, _) if ident == *expected_ident)
-            );
+            check_parser_errors(&parser);
+            assert_eq!(1, program.len());
+            match program.get(0) {
+                Statement::Let(ident, expr) => {
+                    assert_eq!(expected_identifier, ident);
+                    match expr {
+                        Expression::Int(i) => {
+                            assert_eq!(expected_value, *i);
+                        }
+                        _ => panic!("unexpected match expression"),
+                    }
+                }
+                _ => panic!("unexpected match statement"),
+            };
         }
     }
 
@@ -454,6 +538,15 @@ let foobar = true; let barfoo = false;";
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -480,16 +573,15 @@ let foobar = true; let barfoo = false;";
         check_parser_errors(&parser);
 
         assert_eq!(1, program.len());
+        assert_eq!(input, program.to_string());
 
         match program.get(0) {
             Statement::Expression(expr) => match expr {
-                Expression::If(_, conseq, _) => {
-                    match conseq.get(0).unwrap() {
-                        Statement::Expression(expr) => {
-                            assert_eq!("x", expr.to_string())
-                        }
-                        _ => panic!("cannot match consequence expression"),
+                Expression::If(_, conseq, _) => match conseq.get(0).unwrap() {
+                    Statement::Expression(expr) => {
+                        assert_eq!("x", expr.to_string())
                     }
+                    _ => panic!("cannot match consequence expression"),
                 },
                 _ => panic!("cannot match expression"),
             },
@@ -509,6 +601,7 @@ let foobar = true; let barfoo = false;";
         check_parser_errors(&parser);
 
         assert_eq!(1, program.len());
+        assert_eq!(input, program.to_string());
 
         match program.get(0) {
             Statement::Expression(expr) => match expr {
@@ -535,6 +628,66 @@ let foobar = true; let barfoo = false;";
             },
             _ => panic!("cannot match statement"),
         }
+    }
+
+    #[test]
+    fn test_function_expression() {
+        let input = "fn(x, y) { x + y; }";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        check_parser_errors(&parser);
+        assert_eq!(1, program.len());
+        assert_eq!("fn(x, y) { (x + y) }", program.to_string());
+    }
+
+    #[test]
+    fn test_function_parameter_parsing() {
+        let tests = vec![
+            ("fn() {};", vec![]),
+            ("fn(x) {};", vec!["x"]),
+            ("fn(x, y, z) {};", vec!["x", "y", "z"]),
+        ];
+
+        for (input, expected) in tests {
+            let lexer = Lexer::new(input);
+            let mut parser = Parser::new(lexer);
+
+            let program = parser.parse_program();
+
+            check_parser_errors(&parser);
+            assert_eq!(1, program.len());
+
+            match program.get(0) {
+                Statement::Expression(expr) => match expr {
+                    Expression::Function(parameters, _) => {
+                        assert_eq!(expected.len(), parameters.len());
+
+                        for (i, &expect) in expected.iter().enumerate() {
+                            assert_eq!(expect, parameters[i]);
+                        }
+                    }
+                    _ => panic!("unexpected match expression"),
+                },
+                _ => panic!("unexpected match statement"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        check_parser_errors(&parser);
+        assert_eq!(1, program.len());
     }
 
     fn check_parser_errors(parser: &Parser) {

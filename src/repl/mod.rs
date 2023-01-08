@@ -3,7 +3,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 
 use crate::lexer::Lexer;
-use crate::token::Token;
+use crate::parser::Parser;
 
 const PROMPT: &str = ">> ";
 
@@ -24,13 +24,15 @@ where
             return;
         }
 
-        let mut lexer = Lexer::new(&line);
-        loop {
-            let token = lexer.next_token();
-            if token == Token::Eof {
-                break;
+        let lexer = Lexer::new(&line);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        if parser.errors().len() > 0 {
+            for err in parser.errors() {
+                writeln!(writer, "\t{}", err).unwrap();
             }
-            writeln!(writer, "{:?}", token).unwrap();
+            continue;
         }
+        writeln!(writer, "{}", program.to_string()).unwrap();
     }
 }
