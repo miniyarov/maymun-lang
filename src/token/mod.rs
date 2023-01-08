@@ -1,4 +1,6 @@
-#[derive(Clone, Debug, Eq, PartialEq)]
+use std::fmt::{Debug, Display, Formatter};
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Token {
     Illegal,
     Eof,
@@ -16,9 +18,9 @@ pub enum Token {
     Slash,    // /
 
     // Comparisons
-    Lt,     // <
-    Gt,     // >
-    Eq,     // ==
+    Lt,    // <
+    Gt,    // >
+    Eq,    // ==
     NotEq, // !=
 
     // Delimiters
@@ -39,6 +41,24 @@ pub enum Token {
     If,       // if
     Else,     // else
     Return,   // return
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Assign => write!(f, "="),
+            Token::Plus => write!(f, "+"),
+            Token::Minus => write!(f, "-"),
+            Token::Bang => write!(f, "!"),
+            Token::Asterisk => write!(f, "*"),
+            Token::Slash => write!(f, "/"),
+            Token::Gt => write!(f, ">"),
+            Token::Lt => write!(f, "<"),
+            Token::Eq => write!(f, "=="),
+            Token::NotEq => write!(f, "!="),
+            _ => Debug::fmt(self, f),
+        }
+    }
 }
 
 pub fn lookup_ident(ident: &str) -> Token {

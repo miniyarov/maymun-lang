@@ -1,13 +1,17 @@
+use std::io::prelude::*;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::prelude::*;
 
 use crate::lexer::Lexer;
 use crate::token::Token;
 
 const PROMPT: &str = ">> ";
 
-pub fn start<R, W>(input: R, output: W) where R: Read, W: Write {
+pub fn start<R, W>(input: R, output: W)
+where
+    R: Read,
+    W: Write,
+{
     let mut reader = BufReader::new(input);
     let mut writer = output;
 
