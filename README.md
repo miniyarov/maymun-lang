@@ -1,2 +1,2 @@
 # Maymun-lang
-An interpreter for the Maymun programming language in Rust
+An interpreter for the [Monkey programming language](https://monkeylang.org/) in Rust
