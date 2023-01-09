@@ -76,7 +76,7 @@ impl<'a> Parser<'a> {
                 self.next_token();
                 let expr = self.parse_expression(Precedence::Lowest).unwrap();
 
-                while self.cur_token != Token::Semicolon {
+                while self.peek_token == Token::Semicolon {
                     self.next_token();
                 }
 
@@ -563,7 +563,7 @@ let foobar = true; let barfoo = false;";
 
     #[test]
     fn test_if_expression() {
-        let input = "if (x < y) { x }";
+        let input = "if (x < y) { x } ";
 
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);

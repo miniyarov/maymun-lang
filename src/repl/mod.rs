@@ -1,3 +1,4 @@
+use crate::eval::eval_program;
 use std::io::prelude::*;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -33,6 +34,9 @@ where
             }
             continue;
         }
-        writeln!(writer, "{}", program.to_string()).unwrap();
+
+        if let Some(evaluated) = eval_program(program) {
+            writeln!(writer, "{}", evaluated.to_string()).unwrap()
+        }
     }
 }

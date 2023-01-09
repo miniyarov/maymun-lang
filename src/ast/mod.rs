@@ -37,10 +37,10 @@ impl Display for Expression {
                 for stmt in consequence {
                     s.push_str(&stmt.to_string())
                 }
-                s.push_str(" }");
+                s.push_str(" } ");
 
                 if let Some(alternative) = alternative {
-                    s.push_str(" else { ");
+                    s.push_str("else { ");
                     for stmt in alternative {
                         s.push_str(&stmt.to_string())
                     }
@@ -79,7 +79,7 @@ impl Display for Statement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Statement::Let(i, e) => write!(f, "let {} = {};", i, e.to_string()),
-            Statement::Return(e) => write!(f, "return {}", e),
+            Statement::Return(e) => write!(f, "return {};", e),
             Statement::Expression(e) => write!(f, "{}", e),
         }
     }
