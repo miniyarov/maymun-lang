@@ -4,6 +4,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 
 use crate::lexer::Lexer;
+use crate::object::Environment;
 use crate::parser::Parser;
 
 const PROMPT: &str = ">> ";
@@ -15,6 +16,7 @@ where
 {
     let mut reader = BufReader::new(input);
     let mut writer = output;
+    let mut env = Environment::new();
 
     loop {
         write!(writer, "{}", PROMPT).unwrap();
@@ -35,7 +37,7 @@ where
             continue;
         }
 
-        if let Some(evaluated) = eval_program(program) {
+        if let Some(evaluated) = eval_program(program, &mut env) {
             writeln!(writer, "{}", evaluated.to_string()).unwrap()
         }
     }
